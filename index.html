@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>合约风控计算器 + AI</title>
-    <link rel="icon" type="image/png" href="icon.png">
-    <link rel="apple-touch-icon" href="icon.png">
+    <title>合约风控计算器</title>
+    <link rel="icon" type="image/png" href="icon.jpg">
+    <link rel="apple-touch-icon" href="icon.jpg">
     <!-- PWA 配置: 让它在手机桌面上像 App 一样运行 -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#0f172a">
-<link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="manifest.json">
     <!-- 引入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 引入 React 和 ReactDOM -->
@@ -24,6 +24,17 @@
         input, textarea, select { font-size: 16px !important; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* 修复：隐藏浏览器默认的数字输入框微调按钮(上下箭头)，防止与单位文字重叠 */
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        /* 针对 Firefox 的隐藏样式 */
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
         
         /* Loading animation */
         .loader {
@@ -62,7 +73,8 @@
             Percent: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="19" x2="5" y1="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>,
             Coins: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></svg>,
             AlertCircle: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>,
-            Sparkles: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L12 3Z"/></svg>
+            Sparkles: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L12 3Z"/></svg>,
+            XCircle: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
         };
 
         const BtcRiskCalculator = () => {
@@ -120,8 +132,9 @@
 
                 const inputsFilled = [hasEp, hasCv, hasSlPct, hasSlP].filter(Boolean).length;
 
-                if (inputsFilled !== 3) {
-                    setError('请填写其中 3 个变量，留空 1 个作为计算目标。');
+                // 修改条件：允许 3 个或 4 个输入
+                if (inputsFilled < 3) {
+                    setError('请至少填写 3 个变量。');
                     return;
                 }
 
@@ -140,7 +153,7 @@
                     }
                 }
 
-                // 场景 A: 计算止损价格
+                // 场景 A: 计算止损价格 (缺价格)
                 if (!hasSlP && hasEp && hasCv && hasSlPct) {
                     if (direction === 'long') {
                         calculatedSlP = ep * (1 - slPct / 100);
@@ -151,7 +164,7 @@
                     setCalculatedField('slPrice');
                     riskAmount = finalPositionValueUSDT * (slPct / 100);
                 }
-                // 场景 B: 计算止损百分比
+                // 场景 B: 计算止损百分比 (缺百分比)
                 else if (!hasSlPct && hasEp && hasCv && hasSlP) {
                     if (direction === 'long') {
                         calculatedSlPct = ((ep - slP) / ep) * 100;
@@ -166,7 +179,7 @@
                     setCalculatedField('slPercent');
                     riskAmount = finalPositionValueUSDT * (calculatedSlPct / 100);
                 }
-                // 场景 C: 计算开仓均价
+                // 场景 C: 计算开仓均价 (缺开仓价)
                 else if (!hasEp && hasCv && hasSlPct && hasSlP) {
                     if (direction === 'long') {
                         calculatedEp = slP / (1 - slPct / 100);
@@ -180,7 +193,7 @@
                     }
                     riskAmount = finalPositionValueUSDT * (slPct / 100);
                 }
-                // 场景 D: 计算仓位
+                // 场景 D: 计算仓位 (缺合约价值)
                 else if (!hasCv && hasEp && hasSlPct && hasSlP) {
                      let calculatedSl;
                      if (direction === 'long') calculatedSl = ep * (1 - slPct / 100);
@@ -192,6 +205,13 @@
                      }
                      setError('无法计算合约价值：需要提供预期亏损额才能反推仓位。');
                      return;
+                }
+                // 场景 E: 4个变量全部填写 (全知全能模式)
+                else {
+                    // 直接使用填写的 slPercent 和计算好的 Value 计算风险
+                    // 我们优先信任用户填写的"止损比例 %"来计算风险金额
+                    riskAmount = finalPositionValueUSDT * (slPct / 100);
+                    setCalculatedField(null); // 没有字段是被推算出来的
                 }
 
                 setResult({
@@ -257,7 +277,8 @@
 
 
             const getInputClass = (fieldName) => {
-                const base = "w-full p-3 rounded-lg border-2 outline-none transition-all font-mono text-lg ";
+                // 增加 pr-20 (padding-right) 为单位和删除按钮留出空间
+                const base = "w-full p-3 pr-20 rounded-lg border-2 outline-none transition-all font-mono text-lg ";
                 if (calculatedField === fieldName) {
                     return base + "border-yellow-400 bg-yellow-50 text-yellow-900 font-bold animate-pulse";
                 }
@@ -318,6 +339,11 @@
                                     <label className="block text-sm font-medium text-slate-400 mb-1 ml-1">开仓价格 (Entry)</label>
                                     <div className="relative">
                                         <input type="number" inputMode="decimal" placeholder={currency === 'BTC' ? "65000" : "Price"} value={entryPrice} onChange={(e) => setEntryPrice(e.target.value)} className={getInputClass('entryPrice')} />
+                                        {entryPrice && (
+                                            <button onClick={() => setEntryPrice('')} className="absolute right-16 top-1/2 -translate-y-1/2 p-1 text-slate-500 hover:text-white transition-colors">
+                                                <Icons.XCircle className="w-5 h-5" />
+                                            </button>
+                                        )}
                                         <span className="absolute right-4 top-3.5 text-slate-500 text-sm font-bold pointer-events-none">USDT</span>
                                     </div>
                                 </div>
@@ -332,6 +358,11 @@
                                     </div>
                                     <div className="relative">
                                         <input type="number" inputMode="decimal" placeholder={contractUnit === 'COIN' ? "0.5" : "1000"} value={contractValue} onChange={(e) => setContractValue(e.target.value)} className={getInputClass('contractValue')} />
+                                        {contractValue && (
+                                            <button onClick={() => setContractValue('')} className="absolute right-12 top-1/2 -translate-y-1/2 p-1 text-slate-500 hover:text-white transition-colors">
+                                                <Icons.XCircle className="w-5 h-5" />
+                                            </button>
+                                        )}
                                         <span className="absolute right-4 top-3.5 text-slate-500 pointer-events-none">
                                             {contractUnit === 'COIN' ? <Icons.Coins className="w-5 h-5"/> : <Icons.DollarSign className="w-5 h-5"/>}
                                         </span>
@@ -343,6 +374,11 @@
                                         <label className="block text-sm font-medium text-slate-400 mb-1 ml-1">止损比例 %</label>
                                         <div className="relative">
                                             <input type="number" inputMode="decimal" placeholder="5" value={slPercent} onChange={(e) => setSlPercent(e.target.value)} className={getInputClass('slPercent')} />
+                                            {slPercent && (
+                                                <button onClick={() => setSlPercent('')} className="absolute right-10 top-1/2 -translate-y-1/2 p-1 text-slate-500 hover:text-white transition-colors">
+                                                    <Icons.XCircle className="w-5 h-5" />
+                                                </button>
+                                            )}
                                             <span className="absolute right-3 top-3.5 text-slate-500 pointer-events-none">
                                                 <Icons.Percent className="w-4 h-4"/>
                                             </span>
@@ -352,6 +388,11 @@
                                         <label className="block text-sm font-medium text-slate-400 mb-1 ml-1">止损价格</label>
                                         <div className="relative">
                                             <input type="number" inputMode="decimal" placeholder="Price" value={slPrice} onChange={(e) => setSlPrice(e.target.value)} className={getInputClass('slPrice')} />
+                                            {slPrice && (
+                                                <button onClick={() => setSlPrice('')} className="absolute right-14 top-1/2 -translate-y-1/2 p-1 text-slate-500 hover:text-white transition-colors">
+                                                    <Icons.XCircle className="w-5 h-5" />
+                                                </button>
+                                            )}
                                             <span className="absolute right-2 top-3.5 text-slate-500 text-xs font-bold pointer-events-none">USDT</span>
                                         </div>
                                     </div>
@@ -435,11 +476,4 @@
         root.render(<BtcRiskCalculator />);
     </script>
 </body>
-
 </html>
-
-
-
-
-
-
