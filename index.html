@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>合约风控计算器 + AI</title>
+    
+    <!-- PWA 配置: 让它在手机桌面上像 App 一样运行 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0f172a">
+    <!-- 内置 Manifest (Base64) 用于支持安卓全屏启动 -->
+    <link rel="manifest" href="data:application/manifest+json;base64,eyJuYW1lIjoi5ZCI57qm6K6h566X5ZmoIiwic2hvcnRfbmFtZSI6IuWQiOe6puiuoeSuleWZqCIsInN0YXJ0X3VybCI6Ii4iLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsImJhY2tncm91bmRfY29sb3IiOiIjMGYxNzJhIiwidGhlbWVfY29sb3IiOiIjMGYxNzJhIn0=">
+
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 React 和 ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- 引入 Babel 用于解析 JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- 自定义样式防止 iOS 缩放 -->
+    <style>
+        input, textarea, select { font-size: 16px !important; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Loading animation */
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 3px solid #3b82f6;
+            width: 20px;
+            height: 20px;
+            -webkit-animation: spin 1s linear infinite; /* Safari */
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .markdown-body ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 0.5em; }
+        .markdown-body p { margin-bottom: 0.5em; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-200">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Gemini API Key (Inject at runtime)
+        const apiKey = ""; 
+
+        // 图标组件
+        const Icons = {
+            Calculator: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>,
+            ArrowUpCircle: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4"/><path d="M12 16V8"/></svg>,
+            ArrowDownCircle: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><path d="m16 12-4 4-4-4"/><path d="M12 8v8"/></svg>,
+            RefreshCcw: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>,
+            DollarSign: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+            Percent: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="19" x2="5" y1="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>,
+            Coins: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></svg>,
+            AlertCircle: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>,
+            Sparkles: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L12 3Z"/></svg>
+        };
+
+        const BtcRiskCalculator = () => {
+            const [currency, setCurrency] = useState('BTC');
+            const [direction, setDirection] = useState('long');
+            const [entryPrice, setEntryPrice] = useState('');
+            const [contractValue, setContractValue] = useState('');
+            const [contractUnit, setContractUnit] = useState('USDT');
+            const [slPercent, setSlPercent] = useState('');
+            const [slPrice, setSlPrice] = useState('');
+            
+            const currencies = ['BTC', 'ETH', 'SOL', 'BNB', 'DOGE', 'Others'];
+
+            const [result, setResult] = useState(null);
+            const [error, setError] = useState('');
+            const [calculatedField, setCalculatedField] = useState(null);
+
+            // AI State
+            const [aiAdvice, setAiAdvice] = useState('');
+            const [isAiLoading, setIsAiLoading] = useState(false);
+            const [showAiSection, setShowAiSection] = useState(false);
+
+            const handleReset = () => {
+                setEntryPrice('');
+                setContractValue('');
+                setSlPercent('');
+                setSlPrice('');
+                setResult(null);
+                setError('');
+                setCalculatedField(null);
+                setAiAdvice('');
+                setShowAiSection(false);
+                setIsAiLoading(false);
+            };
+
+            const isValid = (val) => val !== '' && !isNaN(val) && parseFloat(val) > 0;
+
+            const handleCalculate = () => {
+                setError('');
+                setResult(null);
+                setCalculatedField(null);
+                // Reset AI when recalculating
+                setAiAdvice('');
+                setShowAiSection(false);
+
+                const ep = parseFloat(entryPrice);
+                const cv = parseFloat(contractValue);
+                const slPct = parseFloat(slPercent);
+                const slP = parseFloat(slPrice);
+
+                const hasEp = isValid(entryPrice);
+                const hasCv = isValid(contractValue);
+                const hasSlPct = isValid(slPercent);
+                const hasSlP = isValid(slPrice);
+
+                const inputsFilled = [hasEp, hasCv, hasSlPct, hasSlP].filter(Boolean).length;
+
+                if (inputsFilled !== 3) {
+                    setError('请填写其中 3 个变量，留空 1 个作为计算目标。');
+                    return;
+                }
+
+                let riskAmount = 0;
+                let finalPositionValueUSDT = 0;
+                let calculatedEp = ep;
+                let calculatedSlP = slP;
+                let calculatedSlPct = slPct;
+
+                // 1. 计算名义价值
+                if (hasCv) {
+                    if (contractUnit === 'COIN') {
+                        if (hasEp) finalPositionValueUSDT = cv * ep;
+                    } else {
+                        finalPositionValueUSDT = cv;
+                    }
+                }
+
+                // 场景 A: 计算止损价格
+                if (!hasSlP && hasEp && hasCv && hasSlPct) {
+                    if (direction === 'long') {
+                        calculatedSlP = ep * (1 - slPct / 100);
+                    } else {
+                        calculatedSlP = ep * (1 + slPct / 100);
+                    }
+                    setSlPrice(calculatedSlP.toFixed(2));
+                    setCalculatedField('slPrice');
+                    riskAmount = finalPositionValueUSDT * (slPct / 100);
+                }
+                // 场景 B: 计算止损百分比
+                else if (!hasSlPct && hasEp && hasCv && hasSlP) {
+                    if (direction === 'long') {
+                        calculatedSlPct = ((ep - slP) / ep) * 100;
+                    } else {
+                        calculatedSlPct = ((slP - ep) / ep) * 100;
+                    }
+                    if (calculatedSlPct < 0) {
+                        setError('止损价无效（盈利而非亏损），请检查方向。');
+                        return;
+                    }
+                    setSlPercent(calculatedSlPct.toFixed(2));
+                    setCalculatedField('slPercent');
+                    riskAmount = finalPositionValueUSDT * (calculatedSlPct / 100);
+                }
+                // 场景 C: 计算开仓均价
+                else if (!hasEp && hasCv && hasSlPct && hasSlP) {
+                    if (direction === 'long') {
+                        calculatedEp = slP / (1 - slPct / 100);
+                    } else {
+                        calculatedEp = slP / (1 + slPct / 100);
+                    }
+                    setEntryPrice(calculatedEp.toFixed(2));
+                    setCalculatedField('entryPrice');
+                    if (contractUnit === 'COIN') {
+                        finalPositionValueUSDT = cv * calculatedEp;
+                    }
+                    riskAmount = finalPositionValueUSDT * (slPct / 100);
+                }
+                // 场景 D: 计算仓位
+                else if (!hasCv && hasEp && hasSlPct && hasSlP) {
+                     let calculatedSl;
+                     if (direction === 'long') calculatedSl = ep * (1 - slPct / 100);
+                     else calculatedSl = ep * (1 + slPct / 100);
+                     
+                     if (Math.abs(calculatedSl - slP) > ep * 0.001) {
+                        setError(`价格逻辑冲突，请检查数值。`);
+                        return;
+                     }
+                     setError('无法计算合约价值：需要提供预期亏损额才能反推仓位。');
+                     return;
+                }
+
+                setResult({
+                    riskAmount: riskAmount.toFixed(2),
+                    finalValue: finalPositionValueUSDT.toFixed(2),
+                    ep: calculatedEp,
+                    slp: calculatedSlP,
+                    slpct: calculatedSlPct
+                });
+            };
+
+            // Call Gemini API
+            const getAiAdvice = async () => {
+                if (!result) return;
+                
+                setIsAiLoading(true);
+                setShowAiSection(true);
+                setAiAdvice('');
+
+                const prompt = `
+你是一位专业的加密货币交易风控分析师。请针对以下交易计划给出一针见血的简短中文点评（100字以内），不要废话，直接说风险点。
+                
+交易信息:
+- 币种: ${currency}
+- 方向: ${direction === 'long' ? '做多 (Long)' : '做空 (Short)'}
+- 开仓价格: ${result.ep || entryPrice}
+- 止损价格: ${result.slp || slPrice}
+- 止损幅度: ${result.slpct || slPercent}%
+- 预计亏损金额: ${result.riskAmount} USDT
+- 仓位名义价值: ${result.finalValue} USDT
+
+请按照以下结构回答:
+1. **风险评级**: (低风险/中等风险/高风险/赌博)
+2. **止损评价**: (过窄/合理/过宽)
+3. **简短建议**: 给交易者的心理或技术建议。
+                `;
+
+                try {
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: prompt }] }]
+                        })
+                    });
+
+                    const data = await response.json();
+                    
+                    if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+                        setAiAdvice(data.candidates[0].content.parts[0].text);
+                    } else {
+                        setAiAdvice("AI 服务暂时繁忙，请稍后再试。");
+                    }
+                } catch (e) {
+                    console.error(e);
+                    setAiAdvice("网络错误，无法连接到 AI 分析服务。");
+                } finally {
+                    setIsAiLoading(false);
+                }
+            };
+
+
+            const getInputClass = (fieldName) => {
+                const base = "w-full p-3 rounded-lg border-2 outline-none transition-all font-mono text-lg ";
+                if (calculatedField === fieldName) {
+                    return base + "border-yellow-400 bg-yellow-50 text-yellow-900 font-bold animate-pulse";
+                }
+                return base + "border-slate-700 bg-slate-800 text-white focus:border-blue-500";
+            };
+
+            return (
+                <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-start sm:justify-center p-3 sm:p-4 font-sans text-slate-200">
+                    <div className="w-full max-w-lg bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 overflow-hidden">
+                        
+                        {/* Header */}
+                        <div className="p-5 bg-slate-800 border-b border-slate-700">
+                            <div className="flex justify-between items-center mb-4">
+                                <div className="flex items-center gap-2">
+                                    <div className="p-2 bg-blue-600 rounded-lg">
+                                        <Icons.Calculator className="w-5 h-5 text-white" />
+                                    </div>
+                                    <h1 className="text-lg font-bold text-white tracking-tight">{currency} 风险计算器</h1>
+                                </div>
+                                <button onClick={handleReset} className="p-2 hover:bg-slate-700 rounded-full transition-colors text-slate-400 hover:text-white">
+                                    <Icons.RefreshCcw className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-2 px-2">
+                                {currencies.map(c => (
+                                    <button
+                                        key={c}
+                                        onClick={() => setCurrency(c)}
+                                        className={`px-3 py-1.5 rounded-full text-sm font-bold transition-all whitespace-nowrap flex-shrink-0 ${
+                                            currency === c 
+                                                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50' 
+                                                : 'bg-slate-700 text-slate-400 border border-transparent hover:bg-slate-600'
+                                        }`}
+                                    >
+                                        {c}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="p-5 space-y-5">
+                            {/* Direction Toggle */}
+                            <div className="grid grid-cols-2 gap-2 p-1 bg-slate-800 rounded-xl">
+                                <button onClick={() => setDirection('long')} className={`flex items-center justify-center gap-2 py-3 rounded-lg font-bold transition-all ${direction === 'long' ? 'bg-green-600 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}>
+                                    <Icons.ArrowUpCircle className="w-5 h-5" />
+                                    做多
+                                </button>
+                                <button onClick={() => setDirection('short')} className={`flex items-center justify-center gap-2 py-3 rounded-lg font-bold transition-all ${direction === 'short' ? 'bg-red-600 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}>
+                                    <Icons.ArrowDownCircle className="w-5 h-5" />
+                                    做空
+                                </button>
+                            </div>
+
+                            {/* Inputs */}
+                            <div className="space-y-4">
+                                <div className="relative group">
+                                    <label className="block text-sm font-medium text-slate-400 mb-1 ml-1">开仓价格 (Entry)</label>
+                                    <div className="relative">
+                                        <input type="number" inputMode="decimal" placeholder={currency === 'BTC' ? "65000" : "Price"} value={entryPrice} onChange={(e) => setEntryPrice(e.target.value)} className={getInputClass('entryPrice')} />
+                                        <span className="absolute right-4 top-3.5 text-slate-500 text-sm font-bold pointer-events-none">USDT</span>
+                                    </div>
+                                </div>
+
+                                <div className="relative group">
+                                    <div className="flex justify-between mb-1 ml-1">
+                                        <label className="block text-sm font-medium text-slate-400">合约价值 (Size)</label>
+                                        <div className="flex bg-slate-800 rounded-md p-0.5 border border-slate-700">
+                                            <button onClick={() => setContractUnit('USDT')} className={`px-2 py-0.5 text-xs rounded transition-colors ${contractUnit === 'USDT' ? 'bg-slate-600 text-white' : 'text-slate-400'}`}>USDT</button>
+                                            <button onClick={() => setContractUnit('COIN')} className={`px-2 py-0.5 text-xs rounded transition-colors ${contractUnit === 'COIN' ? 'bg-slate-600 text-white' : 'text-slate-400'}`}>{currency === 'Others' ? 'COIN' : currency}</button>
+                                        </div>
+                                    </div>
+                                    <div className="relative">
+                                        <input type="number" inputMode="decimal" placeholder={contractUnit === 'COIN' ? "0.5" : "1000"} value={contractValue} onChange={(e) => setContractValue(e.target.value)} className={getInputClass('contractValue')} />
+                                        <span className="absolute right-4 top-3.5 text-slate-500 pointer-events-none">
+                                            {contractUnit === 'COIN' ? <Icons.Coins className="w-5 h-5"/> : <Icons.DollarSign className="w-5 h-5"/>}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="relative group">
+                                        <label className="block text-sm font-medium text-slate-400 mb-1 ml-1">止损比例 %</label>
+                                        <div className="relative">
+                                            <input type="number" inputMode="decimal" placeholder="5" value={slPercent} onChange={(e) => setSlPercent(e.target.value)} className={getInputClass('slPercent')} />
+                                            <span className="absolute right-3 top-3.5 text-slate-500 pointer-events-none">
+                                                <Icons.Percent className="w-4 h-4"/>
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="relative group">
+                                        <label className="block text-sm font-medium text-slate-400 mb-1 ml-1">止损价格</label>
+                                        <div className="relative">
+                                            <input type="number" inputMode="decimal" placeholder="Price" value={slPrice} onChange={(e) => setSlPrice(e.target.value)} className={getInputClass('slPrice')} />
+                                            <span className="absolute right-2 top-3.5 text-slate-500 text-xs font-bold pointer-events-none">USDT</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {error && (
+                                <div className="bg-red-500/10 border border-red-500/50 text-red-200 p-3 rounded-lg text-sm flex gap-2 items-start">
+                                    <Icons.AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                                    <span>{error}</span>
+                                </div>
+                            )}
+
+                            <button onClick={handleCalculate} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-900/50 transition-all active:scale-[0.98] text-lg flex items-center justify-center gap-2">
+                                <Icons.Calculator className="w-5 h-5" />
+                                开始计算
+                            </button>
+
+                            {result && (
+                                <div className="space-y-4 animate-fade-in">
+                                    {/* Standard Results */}
+                                    <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                                                <div className="text-slate-400 text-xs mb-1">预计亏损 (Risk)</div>
+                                                <div className="text-xl font-mono font-bold text-red-400 truncate">
+                                                    {result.riskAmount} <span className="text-xs text-slate-500">U</span>
+                                                </div>
+                                            </div>
+                                            <div className="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                                                <div className="text-slate-400 text-xs mb-1">仓位价值</div>
+                                                <div className="text-lg font-mono font-bold text-white truncate">
+                                                    {result.finalValue} <span className="text-xs text-slate-500">U</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* AI Analysis Button */}
+                                    {!showAiSection && (
+                                        <button 
+                                            onClick={getAiAdvice}
+                                            className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 border border-purple-400/30"
+                                        >
+                                            <Icons.Sparkles className="w-5 h-5" />
+                                            ✨ AI 智能风控点评
+                                        </button>
+                                    )}
+
+                                    {/* AI Result Section */}
+                                    {showAiSection && (
+                                        <div className="bg-slate-800/80 rounded-xl p-4 border border-purple-500/30 shadow-lg relative overflow-hidden">
+                                            {/* Header */}
+                                            <div className="flex items-center gap-2 mb-3 text-purple-300 font-bold border-b border-purple-500/20 pb-2">
+                                                <Icons.Sparkles className="w-4 h-4" />
+                                                Gemini 风控分析师
+                                            </div>
+
+                                            {/* Content */}
+                                            {isAiLoading ? (
+                                                <div className="flex flex-col items-center justify-center py-6 gap-3 text-slate-400">
+                                                    <div className="loader"></div>
+                                                    <span className="text-xs animate-pulse">正在评估市场风险...</span>
+                                                </div>
+                                            ) : (
+                                                <div className="text-sm leading-relaxed text-slate-200 markdown-body whitespace-pre-line">
+                                                    {aiAdvice}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<BtcRiskCalculator />);
+    </script>
+</body>
+</html>
