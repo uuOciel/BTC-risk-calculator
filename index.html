@@ -62,8 +62,11 @@
             // 4个核心输入变量
             const [entryPrice, setEntryPrice] = useState('');
             const [contractValue, setContractValue] = useState('');
-            const [contractUnit, setContractUnit] = useState('USDT');
-            const [riskUSDT, setRiskUSDT] = useState(''); // 原 slPercent 替换为 riskUSDT
+            
+            // 默认设为 'COIN' (币本位)
+            const [contractUnit, setContractUnit] = useState('COIN'); 
+            
+            const [riskUSDT, setRiskUSDT] = useState(''); 
             const [slPrice, setSlPrice] = useState('');
             
             const currencies = ['BTC', 'ETH', 'SOL', 'BNB', 'DOGE', 'Others'];
@@ -83,6 +86,32 @@
             };
 
             const isValid = (val) => val !== '' && !isNaN(val) && parseFloat(val) > 0;
+
+            // 处理单位切换并自动换算
+            const handleUnitChange = (targetUnit) => {
+                if (targetUnit === contractUnit) return;
+
+                const ep = parseFloat(entryPrice);
+                const cv = parseFloat(contractValue);
+
+                // 只有当 开仓价 和 合约价值 都是有效数字时才进行换算
+                if (!isNaN(ep) && ep > 0 && !isNaN(cv) && cv > 0) {
+                    if (targetUnit === 'USDT') {
+                        // 从 币 -> USDT
+                        // 价值(U) = 数量 * 单价
+                        const newVal = cv * ep;
+                        setContractValue(parseFloat(newVal.toFixed(2)).toString());
+                    } else {
+                        // 从 USDT -> 币
+                        // 数量 = 价值(U) / 单价
+                        const newVal = cv / ep;
+                        // 币的数量保留更多小数位
+                        setContractValue(parseFloat(newVal.toFixed(6)).toString());
+                    }
+                }
+                
+                setContractUnit(targetUnit);
+            };
 
             const handleCalculate = () => {
                 setError('');
@@ -125,7 +154,7 @@
                     if (contractUnit === 'USDT') calcPvUsdt = cv;
                     else calcPvUsdt = cv * ep;
 
-                    const slPctDecimal = risk / calcPvUsdt; // 亏损金额 / 总价值 = 止损百分比(小数)
+                    const slPctDecimal = risk / calcPvUsdt; 
                     
                     if (direction === 'long') {
                         calcSlP = ep * (1 - slPctDecimal);
@@ -177,32 +206,24 @@
                         calcCv = calcPvUsdt / ep;
                     }
 
-                    setContractValue(calcCv.toFixed(contractUnit === 'USDT' ? 2 : 4)); // 币本位多保留几位小数
+                    setContractValue(calcCv.toFixed(contractUnit === 'USDT' ? 2 : 4));
                     setCalculatedField('contractValue');
                 }
 
-                // 4. 缺少 开仓价格 (计算 Entry Price) - 最复杂的反推
+                // 4. 缺少 开仓价格 (计算 Entry Price)
                 else if (!hasEp && hasCv && hasRisk && hasSlP) {
-                    // 公式推导见思维链
                     if (contractUnit === 'USDT') {
-                        // 价值恒定为 CV
-                        const ratio = risk / cv; // R/CV
+                        const ratio = risk / cv; 
                         if (ratio >= 1) {
                             setError('无法计算：亏损金额超过或等于本金（全亏），无法反推开仓价。');
                             return;
                         }
-                        
                         if (direction === 'long') {
-                            // EP = SLP / (1 - Risk/CV)
                             calcEp = slP / (1 - ratio);
                         } else {
-                            // EP = SLP / (1 + Risk/CV)
                             calcEp = slP / (1 + ratio);
                         }
                     } else {
-                        // 价值 = Qty * EP
-                        // Long: EP = SLP + Risk/Qty
-                        // Short: EP = SLP - Risk/Qty
                         if (direction === 'long') {
                             calcEp = slP + (risk / cv);
                         } else {
@@ -219,19 +240,15 @@
                     setCalculatedField('entryPrice');
                 }
                 
-                // 5. 全部都有 (All Filled)
+                // 5. 全部都有
                 else {
-                    // 重新计算一遍基础数据用于展示
-                    // 以 Risk 为准不做修改，仅计算 PV 和 SL%
                     setCalculatedField(null);
                 }
 
                 // --- 统一计算结果展示数据 ---
                 
-                // 1. 确保有 EP 用于计算 %
                 if (!calcEp && hasEp) calcEp = ep;
                 
-                // 2. 计算 Stop Loss %
                 let finalPct = 0;
                 if (calcEp > 0 && calcSlP > 0) {
                     if (direction === 'long') finalPct = ((calcEp - calcSlP) / calcEp) * 100;
@@ -239,21 +256,17 @@
                 }
                 finalSlPercent = finalPct;
 
-                // 3. 计算并转换 Position Value
-                // 规则：填U显币，填币显U
+                // 计算并转换 Position Value
                 let displayVal = 0;
                 if (contractUnit === 'USDT') {
-                    // 输入的是 U，输出 币数量 (Qty = Value / EP)
+                    // 输入 U，输出 币
                     if (calcEp > 0) {
-                        displayVal = (hasCv ? calcCv : cv) / calcEp; // 这里 calcCv 可能是刚才算出来的
-                        // 如果刚才算的是 CV (U)，那它就是总价值。如果填的是 CV，它也是总价值。
-                        // 等等，上面逻辑里 calcCv 在 Unit=USDT 时就是名义价值。
-                        // 所以 Qty = calcCv / calcEp
+                        displayVal = (hasCv ? calcCv : cv) / calcEp;
                         finalPositionUnit = currency === 'Others' ? 'COIN' : currency;
                         finalPositionValueFormatted = displayVal.toFixed(4);
                     }
                 } else {
-                    // 输入的是 币，输出 U价值 (Value = Qty * EP)
+                    // 输入 币，输出 U
                     displayVal = calcCv * calcEp;
                     finalPositionUnit = 'USDT';
                     finalPositionValueFormatted = displayVal.toFixed(2);
@@ -344,8 +357,17 @@
                                     <div className="flex justify-between mb-1 ml-1">
                                         <label className="block text-sm font-medium text-slate-400">合约价值 (Size)</label>
                                         <div className="flex bg-slate-800 rounded-md p-0.5 border border-slate-700">
-                                            <button onClick={() => setContractUnit('USDT')} className={`px-2 py-0.5 text-xs rounded transition-colors ${contractUnit === 'USDT' ? 'bg-slate-600 text-white' : 'text-slate-400'}`}>USDT</button>
-                                            <button onClick={() => setContractUnit('COIN')} className={`px-2 py-0.5 text-xs rounded transition-colors ${contractUnit === 'COIN' ? 'bg-slate-600 text-white' : 'text-slate-400'}`}>{currency === 'Others' ? 'COIN' : currency}</button>
+                                            {/* 切换顺序：BTC (COIN) 在左，USDT 在右 */}
+                                            <button 
+                                                onClick={() => handleUnitChange('COIN')} 
+                                                className={`px-2 py-0.5 text-xs rounded transition-colors ${contractUnit === 'COIN' ? 'bg-slate-600 text-white' : 'text-slate-400'}`}
+                                            >
+                                                {currency === 'Others' ? 'COIN' : currency}
+                                            </button>
+                                            <button 
+                                                onClick={() => handleUnitChange('USDT')} 
+                                                className={`px-2 py-0.5 text-xs rounded transition-colors ${contractUnit === 'USDT' ? 'bg-slate-600 text-white' : 'text-slate-400'}`}
+                                            >USDT</button>
                                         </div>
                                     </div>
                                     <div className="relative">
