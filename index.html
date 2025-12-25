@@ -5,12 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>合约风控计算器</title>
     <link rel="icon" type="image/png" href="icon.jpg">
-    <link rel="apple-touch-icon" href="icon.jpg">
-    <!-- PWA 配置: 让它在手机桌面上像 App 一样运行 -->
+    <link rel="apple-touch-icon" href="icon.jpg">   
+    <!-- PWA 配置 -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#0f172a">
     <link rel="manifest" href="manifest.json">
+
     <!-- 引入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 引入 React 和 ReactDOM -->
@@ -19,39 +20,20 @@
     <!-- 引入 Babel 用于解析 JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-    <!-- 自定义样式防止 iOS 缩放 -->
+    <!-- 自定义样式 -->
     <style>
         input, textarea, select { font-size: 16px !important; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
-        /* 修复：隐藏浏览器默认的数字输入框微调按钮(上下箭头)，防止与单位文字重叠 */
         input::-webkit-outer-spin-button,
         input::-webkit-inner-spin-button {
             -webkit-appearance: none;
             margin: 0;
         }
-        /* 针对 Firefox 的隐藏样式 */
         input[type=number] {
             -moz-appearance: textfield;
         }
-        
-        /* Loading animation */
-        .loader {
-            border: 3px solid #f3f3f3;
-            border-radius: 50%;
-            border-top: 3px solid #3b82f6;
-            width: 20px;
-            height: 20px;
-            -webkit-animation: spin 1s linear infinite; /* Safari */
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .markdown-body ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 0.5em; }
-        .markdown-body p { margin-bottom: 0.5em; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-200">
@@ -59,9 +41,6 @@
 
     <script type="text/babel">
         const { useState, useEffect } = React;
-
-        // Gemini API Key (Inject at runtime)
-        const apiKey = ""; 
 
         // 图标组件
         const Icons = {
@@ -73,17 +52,18 @@
             Percent: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="19" x2="5" y1="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>,
             Coins: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></svg>,
             AlertCircle: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>,
-            Sparkles: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L12 3Z"/></svg>,
             XCircle: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
         };
 
         const BtcRiskCalculator = () => {
             const [currency, setCurrency] = useState('BTC');
             const [direction, setDirection] = useState('long');
+            
+            // 4个核心输入变量
             const [entryPrice, setEntryPrice] = useState('');
             const [contractValue, setContractValue] = useState('');
             const [contractUnit, setContractUnit] = useState('USDT');
-            const [slPercent, setSlPercent] = useState('');
+            const [riskUSDT, setRiskUSDT] = useState(''); // 原 slPercent 替换为 riskUSDT
             const [slPrice, setSlPrice] = useState('');
             
             const currencies = ['BTC', 'ETH', 'SOL', 'BNB', 'DOGE', 'Others'];
@@ -92,22 +72,14 @@
             const [error, setError] = useState('');
             const [calculatedField, setCalculatedField] = useState(null);
 
-            // AI State
-            const [aiAdvice, setAiAdvice] = useState('');
-            const [isAiLoading, setIsAiLoading] = useState(false);
-            const [showAiSection, setShowAiSection] = useState(false);
-
             const handleReset = () => {
                 setEntryPrice('');
                 setContractValue('');
-                setSlPercent('');
+                setRiskUSDT('');
                 setSlPrice('');
                 setResult(null);
                 setError('');
                 setCalculatedField(null);
-                setAiAdvice('');
-                setShowAiSection(false);
-                setIsAiLoading(false);
             };
 
             const isValid = (val) => val !== '' && !isNaN(val) && parseFloat(val) > 0;
@@ -116,168 +88,185 @@
                 setError('');
                 setResult(null);
                 setCalculatedField(null);
-                // Reset AI when recalculating
-                setAiAdvice('');
-                setShowAiSection(false);
 
                 const ep = parseFloat(entryPrice);
                 const cv = parseFloat(contractValue);
-                const slPct = parseFloat(slPercent);
+                const risk = parseFloat(riskUSDT);
                 const slP = parseFloat(slPrice);
 
                 const hasEp = isValid(entryPrice);
                 const hasCv = isValid(contractValue);
-                const hasSlPct = isValid(slPercent);
+                const hasRisk = isValid(riskUSDT);
                 const hasSlP = isValid(slPrice);
 
-                const inputsFilled = [hasEp, hasCv, hasSlPct, hasSlP].filter(Boolean).length;
+                const inputsFilled = [hasEp, hasCv, hasRisk, hasSlP].filter(Boolean).length;
 
-                // 修改条件：允许 3 个或 4 个输入
                 if (inputsFilled < 3) {
                     setError('请至少填写 3 个变量。');
                     return;
                 }
 
-                let riskAmount = 0;
-                let finalPositionValueUSDT = 0;
-                let calculatedEp = ep;
-                let calculatedSlP = slP;
-                let calculatedSlPct = slPct;
+                let finalSlPercent = 0;
+                let finalPositionValueFormatted = '';
+                let finalPositionUnit = '';
+                
+                // 临时变量用于计算
+                let calcEp = hasEp ? ep : 0;
+                let calcCv = hasCv ? cv : 0;
+                let calcRisk = hasRisk ? risk : 0;
+                let calcSlP = hasSlP ? slP : 0;
+                let calcPvUsdt = 0; // 名义价值(U)
 
-                // 1. 计算名义价值
-                if (hasCv) {
-                    if (contractUnit === 'COIN') {
-                        if (hasEp) finalPositionValueUSDT = cv * ep;
-                    } else {
-                        finalPositionValueUSDT = cv;
-                    }
-                }
+                // --- 逻辑分支 ---
 
-                // 场景 A: 计算止损价格 (缺价格)
-                if (!hasSlP && hasEp && hasCv && hasSlPct) {
+                // 1. 缺少 止损价格 (计算 SL Price)
+                if (!hasSlP && hasEp && hasCv && hasRisk) {
+                    // PV_USDT
+                    if (contractUnit === 'USDT') calcPvUsdt = cv;
+                    else calcPvUsdt = cv * ep;
+
+                    const slPctDecimal = risk / calcPvUsdt; // 亏损金额 / 总价值 = 止损百分比(小数)
+                    
                     if (direction === 'long') {
-                        calculatedSlP = ep * (1 - slPct / 100);
+                        calcSlP = ep * (1 - slPctDecimal);
                     } else {
-                        calculatedSlP = ep * (1 + slPct / 100);
+                        calcSlP = ep * (1 + slPctDecimal);
                     }
-                    setSlPrice(calculatedSlP.toFixed(2));
+
+                    setSlPrice(calcSlP.toFixed(2));
                     setCalculatedField('slPrice');
-                    riskAmount = finalPositionValueUSDT * (slPct / 100);
                 }
-                // 场景 B: 计算止损百分比 (缺百分比)
-                else if (!hasSlPct && hasEp && hasCv && hasSlP) {
-                    if (direction === 'long') {
-                        calculatedSlPct = ((ep - slP) / ep) * 100;
-                    } else {
-                        calculatedSlPct = ((slP - ep) / ep) * 100;
-                    }
-                    if (calculatedSlPct < 0) {
+
+                // 2. 缺少 预计亏损 (计算 Risk)
+                else if (!hasRisk && hasEp && hasCv && hasSlP) {
+                    // PV_USDT
+                    if (contractUnit === 'USDT') calcPvUsdt = cv;
+                    else calcPvUsdt = cv * ep;
+
+                    let pctDecimal;
+                    if (direction === 'long') pctDecimal = (ep - slP) / ep;
+                    else pctDecimal = (slP - ep) / ep;
+
+                    if (pctDecimal < 0) {
                         setError('止损价无效（盈利而非亏损），请检查方向。');
                         return;
                     }
-                    setSlPercent(calculatedSlPct.toFixed(2));
-                    setCalculatedField('slPercent');
-                    riskAmount = finalPositionValueUSDT * (calculatedSlPct / 100);
+
+                    calcRisk = calcPvUsdt * pctDecimal;
+                    setRiskUSDT(calcRisk.toFixed(2));
+                    setCalculatedField('riskUSDT');
                 }
-                // 场景 C: 计算开仓均价 (缺开仓价)
-                else if (!hasEp && hasCv && hasSlPct && hasSlP) {
-                    if (direction === 'long') {
-                        calculatedEp = slP / (1 - slPct / 100);
-                    } else {
-                        calculatedEp = slP / (1 + slPct / 100);
-                    }
-                    setEntryPrice(calculatedEp.toFixed(2));
-                    setCalculatedField('entryPrice');
-                    if (contractUnit === 'COIN') {
-                        finalPositionValueUSDT = cv * calculatedEp;
-                    }
-                    riskAmount = finalPositionValueUSDT * (slPct / 100);
-                }
-                // 场景 D: 计算仓位 (缺合约价值)
-                else if (!hasCv && hasEp && hasSlPct && hasSlP) {
-                     let calculatedSl;
-                     if (direction === 'long') calculatedSl = ep * (1 - slPct / 100);
-                     else calculatedSl = ep * (1 + slPct / 100);
-                     
-                     if (Math.abs(calculatedSl - slP) > ep * 0.001) {
-                        setError(`价格逻辑冲突，请检查数值。`);
+
+                // 3. 缺少 合约价值 (计算 Contract Value/Size)
+                else if (!hasCv && hasEp && hasRisk && hasSlP) {
+                    let pctDecimal;
+                    if (direction === 'long') pctDecimal = (ep - slP) / ep;
+                    else pctDecimal = (slP - ep) / ep;
+
+                    if (pctDecimal <= 0) {
+                        setError('无法计算：价格逻辑导致盈利而非亏损。');
                         return;
-                     }
-                     setError('无法计算合约价值：需要提供预期亏损额才能反推仓位。');
-                     return;
+                    }
+                    
+                    // Risk = PV_USDT * pct => PV_USDT = Risk / pct
+                    calcPvUsdt = risk / pctDecimal;
+
+                    if (contractUnit === 'USDT') {
+                        calcCv = calcPvUsdt;
+                    } else {
+                        calcCv = calcPvUsdt / ep;
+                    }
+
+                    setContractValue(calcCv.toFixed(contractUnit === 'USDT' ? 2 : 4)); // 币本位多保留几位小数
+                    setCalculatedField('contractValue');
                 }
-                // 场景 E: 4个变量全部填写 (全知全能模式)
+
+                // 4. 缺少 开仓价格 (计算 Entry Price) - 最复杂的反推
+                else if (!hasEp && hasCv && hasRisk && hasSlP) {
+                    // 公式推导见思维链
+                    if (contractUnit === 'USDT') {
+                        // 价值恒定为 CV
+                        const ratio = risk / cv; // R/CV
+                        if (ratio >= 1) {
+                            setError('无法计算：亏损金额超过或等于本金（全亏），无法反推开仓价。');
+                            return;
+                        }
+                        
+                        if (direction === 'long') {
+                            // EP = SLP / (1 - Risk/CV)
+                            calcEp = slP / (1 - ratio);
+                        } else {
+                            // EP = SLP / (1 + Risk/CV)
+                            calcEp = slP / (1 + ratio);
+                        }
+                    } else {
+                        // 价值 = Qty * EP
+                        // Long: EP = SLP + Risk/Qty
+                        // Short: EP = SLP - Risk/Qty
+                        if (direction === 'long') {
+                            calcEp = slP + (risk / cv);
+                        } else {
+                            calcEp = slP - (risk / cv);
+                        }
+                    }
+
+                    if (calcEp <= 0) {
+                        setError('计算出的开仓价格无效（<=0），请检查输入。');
+                        return;
+                    }
+
+                    setEntryPrice(calcEp.toFixed(2));
+                    setCalculatedField('entryPrice');
+                }
+                
+                // 5. 全部都有 (All Filled)
                 else {
-                    // 直接使用填写的 slPercent 和计算好的 Value 计算风险
-                    // 我们优先信任用户填写的"止损比例 %"来计算风险金额
-                    riskAmount = finalPositionValueUSDT * (slPct / 100);
-                    setCalculatedField(null); // 没有字段是被推算出来的
+                    // 重新计算一遍基础数据用于展示
+                    // 以 Risk 为准不做修改，仅计算 PV 和 SL%
+                    setCalculatedField(null);
+                }
+
+                // --- 统一计算结果展示数据 ---
+                
+                // 1. 确保有 EP 用于计算 %
+                if (!calcEp && hasEp) calcEp = ep;
+                
+                // 2. 计算 Stop Loss %
+                let finalPct = 0;
+                if (calcEp > 0 && calcSlP > 0) {
+                    if (direction === 'long') finalPct = ((calcEp - calcSlP) / calcEp) * 100;
+                    else finalPct = ((calcSlP - calcEp) / calcEp) * 100;
+                }
+                finalSlPercent = finalPct;
+
+                // 3. 计算并转换 Position Value
+                // 规则：填U显币，填币显U
+                let displayVal = 0;
+                if (contractUnit === 'USDT') {
+                    // 输入的是 U，输出 币数量 (Qty = Value / EP)
+                    if (calcEp > 0) {
+                        displayVal = (hasCv ? calcCv : cv) / calcEp; // 这里 calcCv 可能是刚才算出来的
+                        // 如果刚才算的是 CV (U)，那它就是总价值。如果填的是 CV，它也是总价值。
+                        // 等等，上面逻辑里 calcCv 在 Unit=USDT 时就是名义价值。
+                        // 所以 Qty = calcCv / calcEp
+                        finalPositionUnit = currency === 'Others' ? 'COIN' : currency;
+                        finalPositionValueFormatted = displayVal.toFixed(4);
+                    }
+                } else {
+                    // 输入的是 币，输出 U价值 (Value = Qty * EP)
+                    displayVal = calcCv * calcEp;
+                    finalPositionUnit = 'USDT';
+                    finalPositionValueFormatted = displayVal.toFixed(2);
                 }
 
                 setResult({
-                    riskAmount: riskAmount.toFixed(2),
-                    finalValue: finalPositionValueUSDT.toFixed(2),
-                    ep: calculatedEp,
-                    slp: calculatedSlP,
-                    slpct: calculatedSlPct
+                    slPercent: finalSlPercent.toFixed(2),
+                    posValue: finalPositionValueFormatted,
+                    posUnit: finalPositionUnit
                 });
             };
 
-            // Call Gemini API
-            const getAiAdvice = async () => {
-                if (!result) return;
-                
-                setIsAiLoading(true);
-                setShowAiSection(true);
-                setAiAdvice('');
-
-                const prompt = `
-你是一位专业的加密货币交易风控分析师。请针对以下交易计划给出一针见血的简短中文点评（100字以内），不要废话，直接说风险点。
-                
-交易信息:
-- 币种: ${currency}
-- 方向: ${direction === 'long' ? '做多 (Long)' : '做空 (Short)'}
-- 开仓价格: ${result.ep || entryPrice}
-- 止损价格: ${result.slp || slPrice}
-- 止损幅度: ${result.slpct || slPercent}%
-- 预计亏损金额: ${result.riskAmount} USDT
-- 仓位名义价值: ${result.finalValue} USDT
-
-请按照以下结构回答:
-1. **风险评级**: (低风险/中等风险/高风险/赌博)
-2. **止损评价**: (过窄/合理/过宽)
-3. **简短建议**: 给交易者的心理或技术建议。
-                `;
-
-                try {
-                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            contents: [{ parts: [{ text: prompt }] }]
-                        })
-                    });
-
-                    const data = await response.json();
-                    
-                    if (data.candidates && data.candidates[0] && data.candidates[0].content) {
-                        setAiAdvice(data.candidates[0].content.parts[0].text);
-                    } else {
-                        setAiAdvice("AI 服务暂时繁忙，请稍后再试。");
-                    }
-                } catch (e) {
-                    console.error(e);
-                    setAiAdvice("网络错误，无法连接到 AI 分析服务。");
-                } finally {
-                    setIsAiLoading(false);
-                }
-            };
-
-
             const getInputClass = (fieldName) => {
-                // 增加 pr-20 (padding-right) 为单位和删除按钮留出空间
                 const base = "w-full p-3 pr-20 rounded-lg border-2 outline-none transition-all font-mono text-lg ";
                 if (calculatedField === fieldName) {
                     return base + "border-yellow-400 bg-yellow-50 text-yellow-900 font-bold animate-pulse";
@@ -335,6 +324,8 @@
 
                             {/* Inputs */}
                             <div className="space-y-4">
+                                
+                                {/* 1. 开仓价格 */}
                                 <div className="relative group">
                                     <label className="block text-sm font-medium text-slate-400 mb-1 ml-1">开仓价格 (Entry)</label>
                                     <div className="relative">
@@ -348,6 +339,7 @@
                                     </div>
                                 </div>
 
+                                {/* 2. 合约价值 */}
                                 <div className="relative group">
                                     <div className="flex justify-between mb-1 ml-1">
                                         <label className="block text-sm font-medium text-slate-400">合约价值 (Size)</label>
@@ -370,22 +362,23 @@
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-3">
+                                    {/* 3. 预计亏损 (原止损比例位置) */}
                                     <div className="relative group">
-                                        <label className="block text-sm font-medium text-slate-400 mb-1 ml-1">止损比例 %</label>
+                                        <label className="block text-sm font-medium text-slate-400 mb-1 ml-1">预计亏损 (Risk)</label>
                                         <div className="relative">
-                                            <input type="number" inputMode="decimal" placeholder="5" value={slPercent} onChange={(e) => setSlPercent(e.target.value)} className={getInputClass('slPercent')} />
-                                            {slPercent && (
-                                                <button onClick={() => setSlPercent('')} className="absolute right-10 top-1/2 -translate-y-1/2 p-1 text-slate-500 hover:text-white transition-colors">
+                                            <input type="number" inputMode="decimal" placeholder="100" value={riskUSDT} onChange={(e) => setRiskUSDT(e.target.value)} className={getInputClass('riskUSDT')} />
+                                            {riskUSDT && (
+                                                <button onClick={() => setRiskUSDT('')} className="absolute right-14 top-1/2 -translate-y-1/2 p-1 text-slate-500 hover:text-white transition-colors">
                                                     <Icons.XCircle className="w-5 h-5" />
                                                 </button>
                                             )}
-                                            <span className="absolute right-3 top-3.5 text-slate-500 pointer-events-none">
-                                                <Icons.Percent className="w-4 h-4"/>
-                                            </span>
+                                            <span className="absolute right-3 top-3.5 text-slate-500 text-sm font-bold pointer-events-none">USDT</span>
                                         </div>
                                     </div>
+
+                                    {/* 4. 止损价格 */}
                                     <div className="relative group">
-                                        <label className="block text-sm font-medium text-slate-400 mb-1 ml-1">止损价格</label>
+                                        <label className="block text-sm font-medium text-slate-400 mb-1 ml-1">止损价格 (SL)</label>
                                         <div className="relative">
                                             <input type="number" inputMode="decimal" placeholder="Price" value={slPrice} onChange={(e) => setSlPrice(e.target.value)} className={getInputClass('slPrice')} />
                                             {slPrice && (
@@ -412,58 +405,24 @@
                             </button>
 
                             {result && (
-                                <div className="space-y-4 animate-fade-in">
-                                    {/* Standard Results */}
-                                    <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="bg-slate-900 p-3 rounded-lg border border-slate-700">
-                                                <div className="text-slate-400 text-xs mb-1">预计亏损 (Risk)</div>
-                                                <div className="text-xl font-mono font-bold text-red-400 truncate">
-                                                    {result.riskAmount} <span className="text-xs text-slate-500">U</span>
-                                                </div>
+                                <div className="bg-slate-800 rounded-xl p-4 border border-slate-700 animate-fade-in">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                                            <div className="text-slate-400 text-xs mb-1">止损比例 (SL %)</div>
+                                            <div className="text-xl font-mono font-bold text-yellow-400 truncate">
+                                                {result.slPercent}%
                                             </div>
-                                            <div className="bg-slate-900 p-3 rounded-lg border border-slate-700">
-                                                <div className="text-slate-400 text-xs mb-1">仓位价值</div>
-                                                <div className="text-lg font-mono font-bold text-white truncate">
-                                                    {result.finalValue} <span className="text-xs text-slate-500">U</span>
-                                                </div>
+                                        </div>
+                                        <div className="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                                            <div className="text-slate-400 text-xs mb-1">仓位价值 (Value)</div>
+                                            <div className="text-xl font-mono font-bold text-white truncate">
+                                                {result.posValue} <span className="text-xs text-slate-500">{result.posUnit}</span>
                                             </div>
                                         </div>
                                     </div>
-
-                                    {/* AI Analysis Button */}
-                                    {!showAiSection && (
-                                        <button 
-                                            onClick={getAiAdvice}
-                                            className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 border border-purple-400/30"
-                                        >
-                                            <Icons.Sparkles className="w-5 h-5" />
-                                            ✨ AI 智能风控点评
-                                        </button>
-                                    )}
-
-                                    {/* AI Result Section */}
-                                    {showAiSection && (
-                                        <div className="bg-slate-800/80 rounded-xl p-4 border border-purple-500/30 shadow-lg relative overflow-hidden">
-                                            {/* Header */}
-                                            <div className="flex items-center gap-2 mb-3 text-purple-300 font-bold border-b border-purple-500/20 pb-2">
-                                                <Icons.Sparkles className="w-4 h-4" />
-                                                Gemini 风控分析师
-                                            </div>
-
-                                            {/* Content */}
-                                            {isAiLoading ? (
-                                                <div className="flex flex-col items-center justify-center py-6 gap-3 text-slate-400">
-                                                    <div className="loader"></div>
-                                                    <span className="text-xs animate-pulse">正在评估市场风险...</span>
-                                                </div>
-                                            ) : (
-                                                <div className="text-sm leading-relaxed text-slate-200 markdown-body whitespace-pre-line">
-                                                    {aiAdvice}
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
+                                    <div className="mt-3 text-[10px] text-slate-500 text-center">
+                                        * 已自动进行 {contractUnit === 'USDT' ? 'USDT -> 币' : '币 -> USDT'} 换算
+                                    </div>
                                 </div>
                             )}
                         </div>
